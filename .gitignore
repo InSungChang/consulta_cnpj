@@ -1,0 +1,8 @@
+# Ignorar node_modules em ambas as pastas
+node_modules/
+
+# Outras pastas ou arquivos que você deseja ignorar
+.DS_Store
+.env
+*.zip
+*.csv
