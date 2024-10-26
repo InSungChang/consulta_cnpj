@@ -1,7 +1,7 @@
 const cron = require('node-cron');
 const fs = require('fs');
 const path = require('path');
-const { descompactarArquivo } = require('./unzipper');  // Certifique-se de que está importando a função corretamente
+const { descompactarArquivo } = require('./unzipper');
 const config = require('./config');
 
 // Variável para controlar o tempo restante até a próxima verificação
@@ -38,12 +38,11 @@ async function processarArquivos() {
         if (fs.existsSync(caminhoArquivo)) {
           try {
             console.log(`Descompactando: ${arquivo}`);
-            await descompactarArquivo(caminhoArquivo, config.pastaDescompactados);  // Certifique-se de que está chamando a função corretamente
+            await descompactarArquivo(caminhoArquivo, config.pastaDescompactados);
             console.log(`Arquivo descompactado: ${arquivo}`);
             
-            // Deleta o arquivo após descompactar
-            fs.unlinkSync(caminhoArquivo);
-            console.log(`Arquivo deletado: ${caminhoArquivo}`);
+            // Deleta o arquivo após descompactar com retentativas
+            await deletarArquivoComRetentativa(caminhoArquivo);
           } catch (err) {
             console.error(`Erro ao descompactar o arquivo: ${caminhoArquivo}`, err);
           }
@@ -57,6 +56,28 @@ async function processarArquivos() {
   } catch (error) {
     console.error('Erro ao processar arquivos compactados:', error);
   }
+}
+
+// Função para tentar deletar o arquivo várias vezes
+function deletarArquivoComRetentativa(caminho, tentativas = 5) {
+  return new Promise((resolve, reject) => {
+    let tentativaAtual = 0;
+
+    const tentarDeletar = () => {
+      fs.unlink(caminho, (err) => {
+        if (!err) {
+          console.log(`Arquivo deletado: ${caminho}`);
+          resolve();
+        } else if (tentativaAtual < tentativas) {
+          tentativaAtual++;
+          setTimeout(tentarDeletar, 500); // Espera 500ms antes de tentar novamente
+        } else {
+          reject(err);
+        }
+      });
+    };
+    tentarDeletar();
+  });
 }
 
 // Agendamento para verificar a pasta a cada X minutos

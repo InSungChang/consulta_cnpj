@@ -11,39 +11,57 @@ function descompactarArquivo(arquivoZip, pastaDestino) {
     });
 
     zip.on('ready', () => {
-      zip.extract(null, pastaDestino, (err, count) => {
+      zip.extract(null, pastaDestino, async (err, count) => {
+        zip.close();
         if (err) {
-          zip.close();
           reject(err);
         } else {
-          // Renomeia arquivos para ter a extensão .csv
-          fs.readdir(pastaDestino, (err, arquivosDescompactados) => {
-            if (err) {
-              zip.close();
-              reject(err);
-            } else {
-              arquivosDescompactados.forEach((arquivo) => {
-                const caminhoArquivo = path.join(pastaDestino, arquivo);
-                const novoNome = caminhoArquivo.endsWith('.csv')
-                  ? caminhoArquivo // Mantém o nome se já terminar com .csv
-                  : `${caminhoArquivo}.csv`; // Adiciona .csv se não tiver a extensão
+          try {
+            // Renomeia arquivos para adicionar a extensão .csv, se necessário
+            const arquivosDescompactados = fs.readdirSync(pastaDestino);
+            for (const arquivo of arquivosDescompactados) {
+              const caminhoArquivo = path.join(pastaDestino, arquivo);
+              const novoNome = caminhoArquivo.endsWith('.csv') ? caminhoArquivo : `${caminhoArquivo}.csv`;
 
-                // Renomeia o arquivo
-                if (caminhoArquivo !== novoNome) {
-                  fs.renameSync(caminhoArquivo, novoNome);
+              if (caminhoArquivo !== novoNome) {
+                try {
+                  await renomearArquivoComRetentativa(caminhoArquivo, novoNome);
                   console.log(`Arquivo renomeado para: ${novoNome}`);
+                } catch (renameErr) {
+                  console.error(`Erro ao renomear o arquivo: ${caminhoArquivo}`, renameErr);
                 }
-              });
-
-              zip.close();
-              resolve(count);
+              }
             }
-          });
+            resolve(count);
+          } catch (listErr) {
+            reject(listErr);
+          }
         }
       });
     });
 
     zip.on('error', (err) => reject(err));
+  });
+}
+
+// Função para tentar renomear o arquivo várias vezes, se necessário
+function renomearArquivoComRetentativa(caminhoAtual, novoCaminho, tentativas = 5) {
+  return new Promise((resolve, reject) => {
+    let tentativaAtual = 0;
+
+    const tentarRenomear = () => {
+      fs.rename(caminhoAtual, novoCaminho, (err) => {
+        if (!err) {
+          resolve();
+        } else if (tentativaAtual < tentativas) {
+          tentativaAtual++;
+          setTimeout(tentarRenomear, 500); // Espera 500ms antes de tentar novamente
+        } else {
+          reject(err);
+        }
+      });
+    };
+    tentarRenomear();
   });
 }
 
